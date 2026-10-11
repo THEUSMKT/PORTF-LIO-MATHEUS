@@ -1,0 +1,12 @@
+{
+  "name": "portfolio-matheus-tools",
+  "private": true,
+  "description": "Ferramentas de build do portfólio (não são publicadas no site).",
+  "scripts": {
+    "build:webgl": "esbuild hero-webgl.src.js --bundle --minify --format=esm --target=es2019 --legal-comments=none --outfile=../js/vendor/hero-webgl.js"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "three": "^0.186.1"
+  }
+}
