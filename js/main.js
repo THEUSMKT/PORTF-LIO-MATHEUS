@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Matheus Beck — Portfólio · main.js
+   Matheus Beck, Portfólio · main.js
    Tudo é aprimoramento progressivo: sem este arquivo a página continua
    legível e clicável. GSAP/ScrollTrigger/Lenis são opcionais (classe no-gsap).
    ========================================================================== */
@@ -16,6 +16,7 @@
   var conn = navigator.connection || {};
   var saveData = !!conn.saveData;
   var hasGsap = !!(window.gsap && window.ScrollTrigger);
+  var introOn = !reduced && !doc.classList.contains('no-intro');
   var WA = 'https://wa.me/5551981947979';
   var WA_DEFAULT = 'Olá Matheus! Vi seu portfólio e quero uma arte para minha empresa.';
 
@@ -27,9 +28,11 @@
 
   /* ── Rolagem suave (Lenis) + ScrollTrigger ─────────────────────────── */
   var lenis = null;
+  var velocity = 0;   // velocidade da rolagem, usada pela faixa de serviços
   if (hasGsap) gsap.registerPlugin(ScrollTrigger);
   if (window.Lenis && !reduced && finePointer) {
     lenis = new Lenis({ duration: 1.1, smoothWheel: true });
+    lenis.on('scroll', function (e) { velocity = clamp(e.velocity, -60, 60); });
     if (hasGsap) {
       lenis.on('scroll', ScrollTrigger.update);
       gsap.ticker.add(function (t) { lenis.raf(t * 1000); });
@@ -37,6 +40,8 @@
     } else {
       (function loop(t) { lenis.raf(t); requestAnimationFrame(loop); })(performance.now());
     }
+  } else if (hasGsap && !reduced) {
+    ScrollTrigger.create({ start: 0, end: 'max', onUpdate: function (st) { velocity = clamp(st.getVelocity() / 60, -60, 60); } });
   }
 
   // âncoras internas passam pelo Lenis (com compensação da nav fixa)
@@ -55,7 +60,7 @@
     });
   });
 
-  /* ── Nav: fundo ao rolar, menu mobile, link ativo ───────────────────── */
+  /* ── Nav: fundo ao sair do topo, menu mobile, link ativo ────────────── */
   var nav = $('.nav');
   var toggle = $('.nav__toggle');
   function closeMenu() {
@@ -71,9 +76,15 @@
     toggle.setAttribute('aria-label', open ? 'Fechar menu' : 'Abrir menu');
     if (open) { var first = $('.nav__links a'); first && first.focus(); }
   });
+  $$('.nav__menu a[target]').forEach(function (a) { a.addEventListener('click', closeMenu); });
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && nav.classList.contains('is-open')) { closeMenu(); toggle.focus(); }
   });
+
+  var sentinel = $('.top-sentinel');
+  if (sentinel) {
+    new IntersectionObserver(function (en) { nav.classList.toggle('is-scrolled', !en[0].isIntersecting); }).observe(sentinel);
+  }
 
   var navLinks = $$('.nav__links a');
   var activeIO = new IntersectionObserver(function (entries) {
@@ -84,26 +95,76 @@
   }, { rootMargin: '-45% 0px -50% 0px' });
   $$('main section[id]').forEach(function (s) { activeIO.observe(s); });
 
-  /* ── Rolagem: nav, barra de progresso, glow, marquee ───────────────── */
-  var bar = $('.progress__bar');
-  var lastY = window.scrollY, velocity = 0, ticking = false;
-  function onScroll() {
-    if (ticking) return;
-    ticking = true;
-    requestAnimationFrame(function () {
-      ticking = false;
-      var y = window.scrollY;
-      velocity = clamp(velocity + (y - lastY) * 0.25, -60, 60);
-      lastY = y;
-      nav.classList.toggle('is-scrolled', y > 40);
-      var max = document.documentElement.scrollHeight - window.innerHeight;
-      bar.style.transform = 'scaleX(' + (max > 0 ? y / max : 0) + ')';
+  /* ── Texto que decodifica ───────────────────────────────────────────────
+     Cada letra vira um <span> que guarda a largura da letra final; por cima
+     dela aparece uma letra sorteada até a vez dela chegar. Nada se mexe no
+     layout, e leitores de tela leem uma cópia do texto real. */
+  var GLYPHS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#&/*+<>';
+  function prepDecode(el) {
+    var real = document.createElement('span');
+    real.className = 'sr-only';
+    real.textContent = el.textContent;
+    var vis = document.createElement('span');
+    vis.setAttribute('aria-hidden', 'true');
+    while (el.firstChild) vis.appendChild(el.firstChild);
+    var chars = [];
+    (function walk(node) {
+      Array.prototype.slice.call(node.childNodes).forEach(function (child) {
+        if (child.nodeType === 1) { walk(child); return; }
+        if (child.nodeType !== 3) return;
+        var frag = document.createDocumentFragment();
+        child.textContent.split(/(\s+)/).forEach(function (part) {
+          if (!part) return;
+          if (/^\s+$/.test(part)) { frag.appendChild(document.createTextNode(part)); return; }
+          var word = document.createElement('span');
+          word.className = 'dc-w';
+          for (var k = 0; k < part.length; k++) {
+            var c = document.createElement('span');
+            c.className = 'dc is-scrambling';
+            c.textContent = part[k];
+            c.setAttribute('data-r', GLYPHS[(Math.random() * GLYPHS.length) | 0]);
+            word.appendChild(c); chars.push(c);
+          }
+          frag.appendChild(word);
+        });
+        child.parentNode.replaceChild(frag, child);
+      });
+    })(vis);
+    el.appendChild(real); el.appendChild(vis);
+    return chars;
+  }
+  function runDecode(chars, dur) {
+    var start = null, n = chars.length, done = 0, tick = 0;
+    var step = function (t) {
+      if (start === null) start = t;
+      var p = clamp((t - start) / dur, 0, 1);
+      var upto = Math.floor(p * n);
+      for (; done < upto; done++) chars[done].classList.remove('is-scrambling');
+      if (++tick % 2 === 0) {
+        for (var k = done; k < n; k++) chars[k].setAttribute('data-r', GLYPHS[(Math.random() * GLYPHS.length) | 0]);
+      }
+      if (p < 1) requestAnimationFrame(step);
+      else for (; done < n; done++) chars[done].classList.remove('is-scrambling');
+    };
+    requestAnimationFrame(step);
+  }
+  if (!reduced) {
+    var decodeIO = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        decodeIO.unobserve(en.target);
+        runDecode(en.target._dc, 650 + en.target._dc.length * 6);
+      });
+    }, { rootMargin: '0px 0px -15% 0px' });
+    $$('[data-decode]').forEach(function (el) {
+      el._dc = prepDecode(el);
+      if (el.closest('.hero')) {
+        setTimeout(function () { runDecode(el._dc, 900); }, introOn ? 1000 : 250);
+      } else decodeIO.observe(el);
     });
   }
-  window.addEventListener('scroll', onScroll, { passive: true });
-  onScroll();
 
-  /* ── Hero: título palavra por palavra, decode, parallax ─────────────── */
+  /* ── Hero: título palavra por palavra, entrada, parallax ───────────── */
   var hero = $('.hero');
   var title = $('[data-words]');
   // no celular o título não é dividido: o texto já pintado é o LCP e não deve ser recriado
@@ -127,29 +188,9 @@
     })(title);
   }
 
-  var decodeEl = $('[data-decode]');
-  if (decodeEl && !reduced) {
-    var finalText = decodeEl.textContent;
-    var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#&/*+<>';
-    var vis = document.createElement('span'); vis.setAttribute('aria-hidden', 'true');
-    var real = document.createElement('span'); real.className = 'sr-only'; real.textContent = finalText;
-    decodeEl.textContent = ''; decodeEl.appendChild(real); decodeEl.appendChild(vis);
-    var start = null, DUR = 900;
-    var step = function (t) {
-      if (start === null) start = t;
-      var p = clamp((t - start) / DUR, 0, 1), out = '';
-      for (var k = 0; k < finalText.length; k++) {
-        var c = finalText[k];
-        out += (c === ' ' || k / finalText.length < p) ? c : chars[(Math.random() * chars.length) | 0];
-      }
-      vis.textContent = out;
-      if (p < 1) requestAnimationFrame(step);
-    };
-    setTimeout(function () { requestAnimationFrame(step); }, 300);
-  }
-
+  // a entrada do hero começa quando a abertura termina
   requestAnimationFrame(function () {
-    setTimeout(function () { hero.classList.add('is-in'); }, reduced || !finePointer ? 0 : 320);
+    setTimeout(function () { hero.classList.add('is-in'); }, reduced || !finePointer ? 0 : (introOn ? 900 : 120));
   });
 
   // parallax em duas camadas (foto e glow) seguindo o mouse
@@ -170,25 +211,22 @@
     new IntersectionObserver(function (en) { heroVisible = en[0].isIntersecting; }).observe(hero);
   }
 
-  /* ── Fundo WebGL do hero (só quando ocioso e o aparelho aguenta) ────── */
+  /* ── Chão quadriculado em WebGL (desktop; no celular fica a versão em CSS) ─ */
   function webglOK() {
-    if (reduced || saveData || !SCRIPT_SRC) return false;
-    var mem = navigator.deviceMemory || 4, cores = navigator.hardwareConcurrency || 4;
-    if (isMobile && (mem < 4 || cores < 6)) return false;
+    if (reduced || saveData || isMobile || !finePointer || !SCRIPT_SRC) return false;
     try {
       var c = document.createElement('canvas');
-      return !!(window.WebGLRenderingContext && (c.getContext('webgl2') || c.getContext('webgl')));
+      return !!(window.WebGLRenderingContext && c.getContext('webgl'));
     } catch (e) { return false; }
   }
   if (webglOK()) {
-    var idle = window.requestIdleCallback || function (fn) { return setTimeout(fn, 1200); };
+    var idle = window.requestIdleCallback || function (fn) { return setTimeout(fn, 600); };
     var boot = function () {
       idle(function () {
-        import(new URL('vendor/hero-webgl.js', SCRIPT_SRC).href).then(function (m) {
-          m.init($('.hero__canvas'), { mobile: isMobile });
-          hero.classList.add('has-webgl');
-        }).catch(function () { /* fica o fallback em CSS */ });
-      }, { timeout: 4000 });
+        import(new URL('hero-grid.js', SCRIPT_SRC).href).then(function (m) {
+          if (m.init($('.hero__canvas'))) hero.classList.add('has-webgl');
+        }).catch(function () { /* fica o chão em CSS */ });
+      }, { timeout: 2500 });
     };
     document.readyState === 'complete' ? boot() : window.addEventListener('load', boot);
   }
@@ -214,7 +252,7 @@
   $$('.scan').forEach(function (el) { scanIO.observe(el); });
 
   /* ── Entradas dos cards e linha do tempo ────────────────────────────── */
-  var groups = ['.cases > .case', '.services__grid > .service', '.timeline .step'];
+  var groups = ['.cases > .case', '.services__list > .service', '.timeline .step'];
   if (hasGsap && !reduced) {
     groups.forEach(function (sel) {
       gsap.set(sel, { opacity: 0, y: 40, rotateX: 8, transformPerspective: 1000, transformOrigin: '50% 100%' });
@@ -250,14 +288,6 @@
         scrollTrigger: { trigger: ph.closest('.case'), start: 'top bottom', end: 'bottom top', scrub: true }
       });
     });
-
-    // glow dourado acompanha a rolagem nas seções escuras
-    $$('.sec-glow').forEach(function (g) {
-      gsap.fromTo(g, { yPercent: -40 }, {
-        yPercent: 60, ease: 'none',
-        scrollTrigger: { trigger: g.parentNode, start: 'top bottom', end: 'bottom top', scrub: true }
-      });
-    });
   } else {
     var showIO = new IntersectionObserver(function (entries) {
       entries.forEach(function (en) {
@@ -270,7 +300,7 @@
     $$('.timeline .step').forEach(function (s) { s.classList.add('is-on'); });
   }
 
-  /* ── Cards holográficos: tilt, foil e glare ─────────────────────────── */
+  /* ── Cases: tilt, foil e glare; borda girando só no destaque ──────────── */
   var holoIO = new IntersectionObserver(function (entries) {
     entries.forEach(function (en) { en.target.classList.toggle('is-visible', en.isIntersecting); });
   });
@@ -285,7 +315,7 @@
       card.style.setProperty('--mx', (px * 100).toFixed(1) + '%');
       card.style.setProperty('--my', (py * 100).toFixed(1) + '%');
       if (last.tilt) {
-        var max = card.classList.contains('case') ? 4 : 8;   // cases são grandes: inclinação menor
+        var max = card.classList.contains('case--feature') ? 3 : 4;   // cases são grandes: inclinação pequena
         card.style.setProperty('--ry', ((px - 0.5) * 2 * max).toFixed(2) + 'deg');
         card.style.setProperty('--rx', ((0.5 - py) * 2 * max).toFixed(2) + 'deg');
       }
@@ -316,17 +346,18 @@
     });
   });
 
-  /* ── Marquee com velocidade reativa à rolagem ───────────────────────── */
+  /* ── Faixa com ✦: acelera com a rolagem, para fora da tela ──────────── */
   var marquee = $('.marquee'), track = $('.marquee__track');
   if (marquee && !reduced) {
     marquee.classList.add('is-js');
-    var x = 0, half = 0, mRaf = 0, prev = 0;
+    var x = 0, half = 0, mRaf = 0, prev = 0, boost = 0;
     var measure = function () { half = track.scrollWidth / 2; };
     measure(); window.addEventListener('resize', measure, { passive: true });
     var mLoop = function (t) {
       var dt = prev ? Math.min((t - prev) / 1000, 0.05) : 0.016; prev = t;
-      velocity *= 0.92;
-      x -= (40 + Math.abs(velocity) * 14) * dt;
+      boost += (Math.abs(velocity) - boost) * 0.08;
+      velocity *= 0.9;
+      x -= (40 + boost * 14) * dt;
       if (half && -x >= half) x += half;
       track.style.transform = 'translate3d(' + x.toFixed(2) + 'px,0,0)';
       mRaf = requestAnimationFrame(mLoop);
@@ -337,48 +368,26 @@
     }).observe(marquee);
   }
 
-  /* ── Botões magnéticos ──────────────────────────────────────────────── */
+  /* ── Botões principais magnéticos ───────────────────────────────────── */
   if (finePointer && !reduced) {
     $$('[data-magnetic]').forEach(function (b) {
       b.addEventListener('pointermove', function (e) {
         var r = b.getBoundingClientRect();
         var dx = (e.clientX - (r.left + r.width / 2)) / (r.width / 2);
         var dy = (e.clientY - (r.top + r.height / 2)) / (r.height / 2);
-        b.style.transform = 'translate3d(' + (dx * 12).toFixed(1) + 'px,' + (dy * 8).toFixed(1) + 'px,0)';
+        b.style.transform = 'translate3d(' + (dx * 10).toFixed(1) + 'px,' + (dy * 6).toFixed(1) + 'px,0)';
       });
       b.addEventListener('pointerleave', function () { b.style.transform = ''; });
     });
   }
 
-  /* ── Cursor em anel (só desktop) ────────────────────────────────────── */
-  var cursor = $('.cursor');
-  if (finePointer && !reduced && cursor) {
-    doc.classList.add('has-cursor');
-    var mx = -100, my = -100, kx = -100, ky = -100, cRaf = 0;
-    var cLoop = function () {
-      kx += (mx - kx) * 0.2; ky += (my - ky) * 0.2;
-      cursor.style.transform = 'translate3d(' + kx.toFixed(1) + 'px,' + ky.toFixed(1) + 'px,0)';
-      cRaf = (Math.abs(mx - kx) > 0.1 || Math.abs(my - ky) > 0.1) ? requestAnimationFrame(cLoop) : 0;
-    };
-    window.addEventListener('pointermove', function (e) {
-      if (e.pointerType !== 'mouse') return;
-      mx = e.clientX; my = e.clientY;
-      cursor.classList.add('is-on');
-      var t = e.target;
-      var onCase = t.closest && t.closest('[data-cursor]');
-      cursor.classList.toggle('is-case', !!onCase);
-      cursor.classList.toggle('is-link', !onCase && !!(t.closest && t.closest('a,button,select,input,textarea,summary')));
-      if (!cRaf) cRaf = requestAnimationFrame(cLoop);
-    }, { passive: true });
-    document.addEventListener('pointerleave', function () { cursor.classList.remove('is-on'); });
-  }
-
-  /* ── WhatsApp flutuante: balão aparece uma vez ──────────────────────── */
-  var wa = $('.wa-float');
-  if (wa) {
-    setTimeout(function () { wa.classList.add('show-bubble'); }, 3500);
-    setTimeout(function () { wa.classList.remove('show-bubble'); }, 9500);
-  }
+  /* ── WhatsApp flutuante: só aparece quando os botões do hero saem da tela ─ */
+  var wa = $('.wa-float'), heroActions = $('.hero__actions');
+  if (wa && heroActions) {
+    new IntersectionObserver(function (en) {
+      wa.classList.toggle('is-on', !en[0].isIntersecting);
+    }).observe(heroActions);
+  } else if (wa) wa.classList.add('is-on');
 
   /* ── Formulário → WhatsApp com mensagem pronta ──────────────────────── */
   var form = $('#form-contato');
