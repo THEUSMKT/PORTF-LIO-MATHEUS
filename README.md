@@ -11,8 +11,9 @@ HTML, CSS e JS puros, sem framework e sem etapa de build para publicar.
 index.html            página única
 css/style.css         estilos (tokens em :root, fontes locais no topo)
 js/main.js            interações (aprimoramento progressivo)
-js/vendor/            GSAP + ScrollTrigger (movimentos ligados à rolagem)
-assets/               fotos, prints dos cases (assets/cases/), fonte Archivo, og-image, assinatura
+js/hero-grid.js       chão quadriculado do hero em WebGL puro (sem bibliotecas, só no desktop)
+js/vendor/            GSAP + ScrollTrigger e Lenis
+assets/               fotos, prints dos cases (assets/cases/), fontes, og-image, assinatura
 .nojekyll             faz o GitHub Pages servir os arquivos como estão
 ```
 
@@ -31,3 +32,10 @@ no `index.html`, mas com o atributo `hidden`. Para ativar:
 2. Remova o atributo `hidden` da `<section>`.
 3. Adicione o link no menu (`<ul class="nav__links">`), por exemplo
    `<li><a href="#depoimentos">Depoimentos</a></li>`.
+
+## Chão quadriculado (WebGL)
+
+`js/hero-grid.js` é carregado só no desktop, quando o navegador está ocioso, e
+pausa quando o hero sai da tela. No celular, com economia de dados ou com
+animações desativadas no sistema, fica a grade estática em CSS (`.hero__floor`).
+Não há etapa de build: edite o arquivo direto.
