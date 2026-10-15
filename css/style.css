@@ -146,16 +146,24 @@ p { text-wrap: pretty; }
 .nav-toggle[aria-expanded="true"] .nav-toggle__close { display: block; }
 
 /* ── 5. HERO ─────────────────────────────────────────────────────────────── */
+/* Camadas: animação no fundo (0), véu de leitura (1), conteúdo (2).
+   --disc-x/--disc-y posicionam a versão estática no mesmo lugar do disco animado. */
 .hero {
-  position: relative; overflow: clip;
-  padding: calc(var(--header-h) + clamp(28px, 5vw, 64px)) 0 clamp(16px, 3vw, 40px);
-  background:
-    radial-gradient(60% 70% at 82% 42%, rgba(37, 99, 235, .16), transparent 70%),
-    radial-gradient(40% 50% at 0% 0%, rgba(103, 232, 249, .05), transparent 70%),
-    var(--bg);
+  --disc-x: 50%; --disc-y: 56%; --disc-r: 190px;
+  position: relative; isolation: isolate; overflow: clip;
+  padding: calc(var(--header-h) + clamp(28px, 5vw, 64px)) 0 clamp(48px, 7vw, 104px);
+  background: var(--bg);
 }
-.hero__grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; align-items: center; }
+.hero__background { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+.hero__background .disc { position: absolute; inset: 0; width: 100%; height: 100%; min-width: 0; }
+/* véu de leitura: atenua o fundo atrás do texto sem apagá-lo e funde o fim da hero com a seção seguinte */
+.hero__shade {
+  position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(6, 11, 24, .68) 0%, rgba(6, 11, 24, .6) 30%, rgba(6, 11, 24, .56) 62%, rgba(6, 11, 24, .64) 82%, var(--bg) 100%);
+}
 .hero__content { position: relative; z-index: 2; }
+.hero__copy { max-width: 680px; }
 .hero__title { font-size: clamp(2.25rem, 1.35rem + 3.6vw, 4.25rem); line-height: 1.04; letter-spacing: -0.035em; max-width: 14ch; }
 .hero__lead { margin-top: 22px; max-width: 50ch; font-size: clamp(1.0625rem, 1rem + .3vw, 1.1875rem); color: var(--text-muted); }
 .hero__actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px; }
@@ -163,31 +171,18 @@ p { text-wrap: pretty; }
 .hero__points li { display: inline-flex; align-items: center; gap: 8px; }
 .hero__points .icon { color: var(--accent-blue); }
 
-/* área da animação: altura reservada antes de o canvas existir */
-.hero__visual { position: relative; height: 240px; margin-top: 8px; }
-.disc { position: absolute; inset: -18% -8%; min-width: 0; }
 .disc__canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none; opacity: 0; transition: opacity 1.2s var(--ease); }
 .disc.is-live .disc__canvas { opacity: 1; }
-/* versão estática derivada do mesmo desenho: disco inclinado, núcleo e jatos */
+/* versão estática derivada do mesmo desenho (disco inclinado, núcleo e jatos), no lugar do disco animado */
 .disc::before {
   content: ""; position: absolute; inset: 0; pointer-events: none; transition: opacity 1s var(--ease);
   background:
-    radial-gradient(ellipse 9% 5% at 50% 50%, rgba(244, 247, 252, .55), transparent 70%),
-    radial-gradient(ellipse 30% 8% at 50% 50%, rgba(103, 232, 249, .42), rgba(59, 130, 246, .28) 45%, transparent 72%),
-    radial-gradient(ellipse 3.5% 46% at 50% 50%, rgba(96, 165, 250, .32), transparent 72%),
-    radial-gradient(ellipse 46% 34% at 50% 50%, rgba(37, 99, 235, .2), transparent 72%);
+    radial-gradient(ellipse calc(var(--disc-r) * .3) calc(var(--disc-r) * .16) at var(--disc-x) var(--disc-y), rgba(244, 247, 252, .5), transparent 70%),
+    radial-gradient(ellipse var(--disc-r) calc(var(--disc-r) * .26) at var(--disc-x) var(--disc-y), rgba(103, 232, 249, .38), rgba(59, 130, 246, .24) 45%, transparent 72%),
+    radial-gradient(ellipse calc(var(--disc-r) * .12) calc(var(--disc-r) * 1.6) at var(--disc-x) var(--disc-y), rgba(96, 165, 250, .28), transparent 72%),
+    radial-gradient(ellipse calc(var(--disc-r) * 1.6) calc(var(--disc-r) * 1.15) at var(--disc-x) var(--disc-y), rgba(37, 99, 235, .2), transparent 72%);
 }
 .disc.is-live::before { opacity: 0; }
-/* as bordas se dissolvem no fundo: máscara onde houver suporte, véu em degradê onde não houver */
-@supports ((-webkit-mask-image: radial-gradient(#000, transparent)) or (mask-image: radial-gradient(#000, transparent))) {
-  .disc {
-    -webkit-mask-image: radial-gradient(ellipse 50% 50% at 50% 50%, #000 52%, transparent 100%);
-            mask-image: radial-gradient(ellipse 50% 50% at 50% 50%, #000 52%, transparent 100%);
-  }
-}
-@supports not ((-webkit-mask-image: radial-gradient(#000, transparent)) or (mask-image: radial-gradient(#000, transparent))) {
-  .disc::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse 50% 50% at 50% 50%, transparent 52%, var(--bg) 100%); }
-}
 
 /* ── 6. PROJETOS (faixa horizontal com cards quadrados iguais) ──────────── */
 .projects { background: var(--bg); padding-top: clamp(32px, 5vw, 64px); }
@@ -237,6 +232,14 @@ p { text-wrap: pretty; }
 .project__bar i { width: 6px; height: 6px; border-radius: 50%; background: rgba(244, 247, 252, .28); }
 .project__frame img { width: 100%; height: auto; aspect-ratio: 16 / 10; object-fit: contain; background: var(--bg-alt); transition: transform .5s var(--ease); -webkit-user-drag: none; }
 .project:hover .project__frame img { transform: scale(1.02); }
+.project__pending {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  width: 100%; aspect-ratio: 16 / 10; padding: 8px; text-align: center; color: var(--text-muted);
+  background: radial-gradient(70% 80% at 50% 40%, rgba(37, 99, 235, .24), transparent 70%), var(--bg-alt);
+}
+.project__pending .icon { width: 28px; height: 28px; margin-bottom: 4px; color: var(--accent-blue); }
+.project__pending span { font-size: .8125rem; font-weight: 600; color: var(--text); }
+.project__pending small { font-size: .75rem; }
 .project__info { flex: 0 0 var(--card-info); display: flex; flex-direction: column; padding: 12px 4px 0; }
 .project__tag { display: flex; align-items: center; min-height: 1.25rem; font-size: .8125rem; font-weight: 500; line-height: 1.3; color: var(--accent-blue); }
 .status { display: inline-flex; align-items: center; padding: 1px 9px; border-radius: 999px; border: 1px solid rgba(103, 232, 249, .45); background: rgba(103, 232, 249, .08); color: var(--accent-cyan); font-size: .75rem; font-weight: 600; line-height: 1.4; }
@@ -310,7 +313,12 @@ p { text-wrap: pretty; }
   padding: clamp(24px, 4.5vw, 56px); border-radius: 24px; border: 1px solid var(--border);
   background: radial-gradient(60% 80% at 0% 50%, rgba(37, 99, 235, .18), transparent 70%), var(--bg-alt);
 }
-.about__mark { width: 72px; height: 72px; }
+.about__photo { width: clamp(150px, 42vw, 180px); margin: 0; }
+.about__photo img {
+  width: 100%; height: auto; aspect-ratio: 4 / 5; object-fit: cover; object-position: 50% 30%;
+  border-radius: 18px; border: 1px solid rgba(96, 165, 250, .32); background: var(--surface);
+  box-shadow: 0 20px 44px -26px rgba(37, 99, 235, .55);
+}
 .about__text p { margin-top: 16px; max-width: 62ch; font-size: clamp(1rem, .95rem + .3vw, 1.125rem); color: var(--text-muted); }
 .about__text .about__note { display: flex; align-items: center; gap: 10px; color: var(--text); font-size: 1rem; }
 .about__note .icon { color: var(--accent-cyan); }
@@ -427,8 +435,8 @@ html:not(.js) .form { display: none; }
   .form__row { grid-template-columns: 1fr 1fr; }
   .bento { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .bento__main { grid-column: 1 / -1; }
-  .about__panel { grid-template-columns: auto minmax(0, 1fr); gap: clamp(24px, 4vw, 48px); }
-  .about__mark { width: 112px; height: 112px; }
+  .about__panel { grid-template-columns: auto minmax(0, 1fr); gap: clamp(28px, 4vw, 56px); }
+  .about__photo { width: clamp(200px, 24vw, 280px); }
   .footer__inner { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr); }
   .footer__copy { grid-column: 1 / -1; }
 }
@@ -443,9 +451,13 @@ html:not(.js) .form { display: none; }
   .faq__head { position: sticky; top: calc(var(--header-h) + 32px); align-self: start; }
 }
 @media (min-width: 960px) {
-  .hero__grid { grid-template-columns: minmax(0, 55fr) minmax(0, 45fr); gap: 24px; }
-  .hero__visual { height: clamp(420px, 40vw, 540px); margin-top: 0; }
-  .disc { inset: -16% -24% -16% -14%; }
+  /* desktop: o disco fica no centro-direita do fundo e o véu protege a coluna de texto */
+  .hero { --disc-x: 68%; --disc-y: 50%; --disc-r: 300px; }
+  .hero__shade {
+    background:
+      linear-gradient(90deg, rgba(6, 11, 24, .84) 0%, rgba(6, 11, 24, .62) 34%, rgba(6, 11, 24, .16) 62%, rgba(6, 11, 24, 0) 80%),
+      linear-gradient(180deg, rgba(6, 11, 24, .35) 0%, transparent 22%, transparent 74%, var(--bg) 100%);
+  }
   .contact__panel { grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); gap: clamp(40px, 5vw, 72px); }
 }
 /* notebooks de tela baixa: a hero encolhe para o primeiro CTA aparecer sem rolar */
@@ -455,7 +467,6 @@ html:not(.js) .form { display: none; }
   .hero__lead { margin-top: 16px; }
   .hero__actions { margin-top: 24px; }
   .hero__points { margin-top: 20px; }
-  .hero__visual { height: min(68vh, 480px); }
 }
 @media (min-width: 1024px) {
   :root { --card-base: 22.5rem; }
