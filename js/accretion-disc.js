@@ -57,6 +57,7 @@ uniform float uJetAmount;
 uniform float uJetLen;
 uniform float uJetSpread;
 uniform float uMaxPoint;
+uniform vec2 uShift;
 
 varying float vAlpha;
 varying float vRamp;
@@ -124,7 +125,8 @@ void main() {
     float depth = -q.z;
     if (depth < 1.0) { kill(); return; }
 
-    gl_Position = vec4(q.x * FOCAL / (depth * uAspect), q.y * FOCAL / depth, 0.0, 1.0);
+    // uShift desloca o disco na tela (unidades NDC), para compor o fundo sem esticar o desenho
+    gl_Position = vec4(q.x * FOCAL / (depth * uAspect) + uShift.x, q.y * FOCAL / depth + uShift.y, 0.0, 1.0);
 
     float ppw = FOCAL * uHalfH / depth;
     float focusD = uDist * ${FOCUS_MULT.toFixed(2)};
@@ -167,7 +169,7 @@ void main() {
 `;
 
 const UNIFORMS = ['uTime', 'uTilt', 'uDist', 'uAspect', 'uHalfH', 'uDotSize', 'uBlur', 'uScatter', 'uArms',
-  'uJetAmount', 'uJetLen', 'uJetSpread', 'uMaxPoint', 'uBase', 'uAccent', 'uGain'];
+  'uJetAmount', 'uJetLen', 'uJetSpread', 'uMaxPoint', 'uShift', 'uBase', 'uAccent', 'uGain'];
 
 // Valores do preset exportado (field, disc e jets do componente base), com as cores da nova identidade.
 const DEFAULTS = {
@@ -179,6 +181,8 @@ const DEFAULTS = {
   speed: 32,
   distance: 228,
   fitPower: 0.55,        // afasta a câmera em hosts mais altos que largos, para o disco não ser cortado
+  shiftX: 0,             // deslocamento do disco na tela, em unidades NDC (-1 a 1)
+  shiftY: 0,
   scatter: 300,
   blur: 0,
   tilt: 13,
@@ -369,6 +373,7 @@ export function createRenderer(canvas, options, hooks = {}) {
     gl.uniform1f(u.uJetAmount, o.jetAmount / 100);
     gl.uniform1f(u.uJetLen, (o.jetLength / 100) * ROUT);
     gl.uniform1f(u.uJetSpread, (o.jetSpread * Math.PI) / 180);
+    gl.uniform2f(u.uShift, o.shiftX, o.shiftY);
 
     gl.bindBuffer(gl.ARRAY_BUFFER, res.seedBuf);
     gl.enableVertexAttribArray(res.aSeed);

@@ -212,13 +212,28 @@
   var discHost = $('[data-disc]');
   var fx = null, loading = false, gaveUp = false;
   var saveData = !!(navigator.connection && navigator.connection.saveData);
+  // o enquadramento segue o layout da hero; a carga segue o tipo de aparelho
+  var wideLayout = window.matchMedia('(min-width: 960px)');
   function discOptions() {
     var small = window.matchMedia('(max-width: 767.98px), (pointer: coarse)').matches;
     var lowEnd = (navigator.deviceMemory || 8) < 4 || (navigator.hardwareConcurrency || 8) < 4;
     // com menos partículas que o preset original, os pontos ficam um pouco maiores e mais claros
-    return small
-      ? { count: lowEnd ? 6000 : 10000, minCount: 4000, dprMax: 1, fps: 30, dotSize: 165, intensity: 1.8, tilt: 16, distance: 150 }
-      : { count: lowEnd ? 20000 : 32000, minCount: 8000, dprMax: 1.5, fps: 60, dotSize: 150, intensity: 1.45, tilt: 16, distance: 228 };
+    var opts = small
+      ? { count: lowEnd ? 6000 : 10000, minCount: 4000, dprMax: 1, fps: 30, dotSize: 165, intensity: 1.8 }
+      : { count: lowEnd ? 20000 : 32000, minCount: 8000, dprMax: 1.5, fps: 60, dotSize: 150, intensity: 1.45 };
+    opts.tilt = 16;
+    if (wideLayout.matches) {
+      // fundo de toda a hero, com o disco no centro-direita (mesma posição de --disc-x no CSS)
+      opts.distance = 228; opts.shiftX = 0.36; opts.shiftY = 0;
+    } else {
+      // layout estreito: disco centralizado atrás do conteúdo. Em tela vertical a câmera chega mais
+      // perto para ele ser percebido; em tablet deitado fica mais longe para não espalhar demais.
+      var box = discHost.getBoundingClientRect();
+      var portrait = box.width < box.height;
+      opts.distance = portrait ? 165 : 235; opts.fitPower = 0.45; opts.shiftX = 0; opts.shiftY = -0.12;
+      opts.intensity = small ? 1.5 : 1.3;
+    }
+    return opts;
   }
   function startDisc() {
     if (!discHost || fx || loading || gaveUp || saveData || mqReduce.matches || !SCRIPT_SRC) return;
@@ -234,6 +249,8 @@
   }
   function stopDisc() { if (fx) { fx.destroy(); fx = null; } }
   mqReduce.addEventListener('change', function () { mqReduce.matches ? stopDisc() : startDisc(); });
+  // ao cruzar o breakpoint, recria a animação com o enquadramento certo (uma instância por vez)
+  wideLayout.addEventListener('change', function () { if (fx) { stopDisc(); startDisc(); } });
   if (discHost) {
     // espera a página carregar e a fonte trocar, para não disputar com a pintura do título
     var idle = window.requestIdleCallback || function (fn) { return setTimeout(fn, 300); };

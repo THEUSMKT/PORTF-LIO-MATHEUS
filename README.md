@@ -15,13 +15,13 @@ js/main.js              menu, faixa de projetos, formulário, WhatsApp flutuante
 js/accretion-disc.js    animação da hero (Accretion Disc 4, Originkit) em WebGL nativo
 js/accretion-disc-worker.js  roda a animação fora da thread principal (OffscreenCanvas)
 assets/cases/           capturas dos projetos (as versões *-mobile.webp não são usadas hoje)
-assets/img/             favicon, ícone de tela inicial, imagem de compartilhamento
+assets/img/             favicon, ícone de tela inicial, imagem de compartilhamento, retrato da seção "sobre"
 assets/fonts/           Inter variável (pesos 100 a 900)
 .nojekyll               faz o GitHub Pages servir os arquivos como estão
 ```
 
-As fotos `assets/hero-palco.webp` e `assets/sobre-perfil.webp` e a
-`assets/img/assinatura.svg` continuam no repositório, mas não são carregadas.
+A foto `assets/hero-palco.webp` e a `assets/img/assinatura.svg` continuam no
+repositório, mas não são carregadas.
 
 ## Rodar localmente
 
@@ -64,7 +64,23 @@ O `main.js` define as opções por tamanho de tela:
 - Perda de contexto do WebGL volta para a versão estática; a restauração
   recria os recursos.
 
+## Animação como fundo da hero
+
+O host `.hero__background .disc` cobre a seção inteira; `.hero__shade` é o véu de
+leitura entre a animação e o texto. O `main.js` escolhe o enquadramento pelo layout:
+a partir de 960px o disco fica no centro-direita (`shiftX: 0.36`, igual a
+`--disc-x: 68%` da versão estática no CSS); abaixo disso fica centralizado atrás do
+conteúdo, com a câmera mais próxima em tela vertical.
+
 ## Faixa de projetos
+
+Ordem definida pelo proprietário: Gestão de Tráfego, Pablo, Configurador, Julia,
+Cantinho Vip, Schay. A captura do configurador (`configurador-desktop.webp`) foi
+feita a partir do build do próprio código publicado em
+`THEUSMKT/Matheus-Performance/apps/configurador`. O Cantinho Vip ainda usa uma
+prévia provisória (`.project__pending`); para trocar pela captura real, salve
+`assets/cases/cantinho-vip-desktop.webp` em 1440x900 e substitua o bloco
+`project__pending` do card por um `<img>` igual ao dos outros cards.
 
 Os quatro cards usam a mesma estrutura e são quadrados (`aspect-ratio: 1`),
 com o tamanho definido por `--card` em cada breakpoint. A rolagem é nativa
