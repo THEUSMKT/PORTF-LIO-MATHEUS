@@ -1,6 +1,7 @@
-# Portfólio, Matheus Beck
+# Matheus Beck, Criação de Sites Profissionais
 
-Site one-page de portfólio (design e criação de artes profissionais).
+Página comercial de criação de sites profissionais e landing pages, com os
+projetos reais do portfólio.
 Publicado em: https://theusmkt.github.io/PORTF-LIO-MATHEUS/
 
 HTML, CSS e JS puros, sem framework e sem etapa de build para publicar.
@@ -8,34 +9,71 @@ HTML, CSS e JS puros, sem framework e sem etapa de build para publicar.
 ## Estrutura
 
 ```
-index.html            página única
-css/style.css         estilos (tokens em :root, fontes locais no topo)
-js/main.js            interações (aprimoramento progressivo)
-js/hero-grid.js       chão quadriculado do hero em WebGL puro (sem bibliotecas, só no desktop)
-js/vendor/            GSAP + ScrollTrigger e Lenis
-assets/               fotos, prints dos cases (assets/cases/), fontes, og-image, assinatura
-.nojekyll             faz o GitHub Pages servir os arquivos como estão
+index.html              página única
+css/style.css           estilos (tokens em :root, fonte Inter variável local no topo)
+js/main.js              menu, faixa de projetos, formulário, WhatsApp flutuante e carregamento da animação
+js/accretion-disc.js    animação da hero (Accretion Disc 4, Originkit) em WebGL nativo
+js/accretion-disc-worker.js  roda a animação fora da thread principal (OffscreenCanvas)
+assets/cases/           capturas dos projetos (as versões *-mobile.webp não são usadas hoje)
+assets/img/             favicon, ícone de tela inicial, imagem de compartilhamento
+assets/fonts/           Inter variável (pesos 100 a 900)
+.nojekyll               faz o GitHub Pages servir os arquivos como estão
 ```
+
+As fotos `assets/hero-palco.webp` e `assets/sobre-perfil.webp` e a
+`assets/img/assinatura.svg` continuam no repositório, mas não são carregadas.
+
+## Rodar localmente
+
+```bash
+python3 -m http.server 8000
+# abra http://localhost:8000/
+```
+
+Um servidor é necessário porque a animação é carregada como módulo
+(`import()`), que não funciona abrindo o arquivo direto do disco.
 
 ## Publicação (GitHub Pages)
 
 Settings → Pages → Build and deployment → Source: **Deploy from a branch** →
-Branch: **main** / **(root)** → Save. Todos os caminhos são relativos, então o
-site funciona na subpasta `/PORTF-LIO-MATHEUS/`.
+Branch: **main** / **(root)**. Todos os caminhos são relativos, então o site
+funciona na subpasta `/PORTF-LIO-MATHEUS/`.
 
-## Seções ocultas
+## Animação da hero
 
-`Depoimentos` (`#depoimentos`) e `Dúvidas frequentes` (`#duvidas`) estão prontas
-no `index.html`, mas com o atributo `hidden`. Para ativar:
+`js/accretion-disc.js` exporta `initAccretionDisc(host, opções)`, que devolve
+`{ destroy, pause, resume }` ou `null` quando não há WebGL ou o shader falha.
+Onde o navegador tem `OffscreenCanvas`, o WebGL roda num Web Worker
+(`js/accretion-disc-worker.js`): criar o contexto e desenhar os quadros não
+ocupa a thread principal. Se o Worker não conseguir, a animação roda na própria
+página; se também não der, fica a versão estática.
+O `main.js` define as opções por tamanho de tela:
 
-1. Preencha os dados reais (há comentários indicando onde).
-2. Remova o atributo `hidden` da `<section>`.
-3. Adicione o link no menu (`<ul class="nav__links">`), por exemplo
-   `<li><a href="#depoimentos">Depoimentos</a></li>`.
+| | Partículas | DPR máx. | Quadros por segundo |
+| --- | --- | --- | --- |
+| Celular / toque | 10.000 (6.000 em aparelho modesto) | 1 | 30 |
+| Desktop | 32.000 (20.000 em aparelho modesto) | 1,5 | 60 |
 
-## Chão quadriculado (WebGL)
+- Carrega depois do `load`, quando o navegador fica ocioso.
+- Pausa de verdade fora da tela e com a aba oculta.
+- Se o aparelho não sustenta o ritmo, reduz a quantidade (no máximo duas vezes)
+  e, se ainda não der, fica na versão estática.
+- Com movimento reduzido ou economia de dados, nenhum contexto WebGL é criado e
+  aparece a versão estática em CSS (`.disc::before`). A preferência de
+  movimento é acompanhada ao vivo.
+- Perda de contexto do WebGL volta para a versão estática; a restauração
+  recria os recursos.
 
-`js/hero-grid.js` é carregado só no desktop, quando o navegador está ocioso, e
-pausa quando o hero sai da tela. No celular, com economia de dados ou com
-animações desativadas no sistema, fica a grade estática em CSS (`.hero__floor`).
-Não há etapa de build: edite o arquivo direto.
+## Faixa de projetos
+
+Os quatro cards usam a mesma estrutura e são quadrados (`aspect-ratio: 1`),
+com o tamanho definido por `--card` em cada breakpoint. A rolagem é nativa
+com `scroll-snap`; o script só acrescenta os botões, a barra de progresso,
+o arraste com mouse (a partir de 6px) e as setas do teclado dentro da faixa.
+
+## Contato e rastreamento
+
+Todos os botões de contato abrem o WhatsApp com a mensagem sobre site
+profissional. Os CTAs têm `data-cta` e os links de projeto têm `data-project`,
+prontos para uma ferramenta de análise, se for adicionada. Nenhuma está
+instalada hoje.
