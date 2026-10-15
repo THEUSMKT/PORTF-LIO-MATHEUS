@@ -77,10 +77,9 @@ conteúdo, com a câmera mais próxima em tela vertical.
 Ordem definida pelo proprietário: Gestão de Tráfego, Pablo, Configurador, Julia,
 Cantinho Vip, Schay. A captura do configurador (`configurador-desktop.webp`) foi
 feita a partir do build do próprio código publicado em
-`THEUSMKT/Matheus-Performance/apps/configurador`. O Cantinho Vip ainda usa uma
-prévia provisória (`.project__pending`); para trocar pela captura real, salve
-`assets/cases/cantinho-vip-desktop.webp` em 1440x900 e substitua o bloco
-`project__pending` do card por um `<img>` igual ao dos outros cards.
+`THEUSMKT/Matheus-Performance/apps/configurador`, e a do Cantinho Vip
+(`cantinho-vip-desktop.webp`) a partir do código de `THEUSMKT/SITE-GELISE`, com as
+mesmas fontes do Google Fonts que o site usa. Novas capturas: 1440x900, WebP.
 
 Os quatro cards usam a mesma estrutura e são quadrados (`aspect-ratio: 1`),
 com o tamanho definido por `--card` em cada breakpoint. A rolagem é nativa
