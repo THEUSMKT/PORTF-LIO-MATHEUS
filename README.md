@@ -81,10 +81,24 @@ feita a partir do build do próprio código publicado em
 (`cantinho-vip-desktop.webp`) a partir do código de `THEUSMKT/SITE-GELISE`, com as
 mesmas fontes do Google Fonts que o site usa. Novas capturas: 1440x900, WebP.
 
-Os quatro cards usam a mesma estrutura e são quadrados (`aspect-ratio: 1`),
-com o tamanho definido por `--card` em cada breakpoint. A rolagem é nativa
-com `scroll-snap`; o script só acrescenta os botões, a barra de progresso,
-o arraste com mouse (a partir de 6px) e as setas do teclado dentro da faixa.
+Os seis cards usam a mesma estrutura e são quadrados (`aspect-ratio: 1`), com o
+tamanho definido por `--card`: cerca de 88% da tela no celular, 420px no tablet,
+460px de 1024px e 520px a partir de 1280px (em telas baixas, nunca mais alto que a
+área abaixo do cabeçalho, sem ficar menor que 22rem). O rodapé de cada card tem
+altura fixa (`--card-info`) e a moldura da captura ocupa o resto: usa toda a
+largura e só encolhe se a altura não comportar a captura em 16:10.
+
+A rolagem é nativa com `scroll-snap`; o script só acrescenta os botões, a barra de
+progresso, o arraste com mouse (a partir de 6px; ao soltar, assenta no próximo card
+na direção do arraste), as setas do teclado dentro da faixa e a moldura de luz.
+
+Moldura de luz: o card tocado (ou sob o mouse) acende o contorno e o fundo perto do
+ponto de contato (`.is-lit`, com `--mx`/`--my`); durante a rolagem e a inércia, o card
+mais perto do centro ganha só o contorno (`.is-current`). As camadas são
+pseudo-elementos atrás da captura e do texto, sem `pointer-events`. Os listeners são
+passivos e não usam `preventDefault`, `touch-action` nem captura de ponteiro, então a
+rolagem e a pinça continuam com o navegador. Com movimento reduzido, a borda só
+muda de forma estática.
 
 ## Contato e rastreamento
 

@@ -46,12 +46,14 @@
   /* recuo da faixa de projetos: alinha o primeiro card ao container */
   --edge: max(var(--pad), calc((100% - var(--max)) / 2 + var(--pad)));
 
-  /* card de projeto: um único tamanho por breakpoint, nunca mais largo que a tela */
-  --card-base: clamp(17.5rem, 84vw, 22rem);
-  --card: min(var(--card-base), calc(100vw - 2 * var(--pad)));
-  --card-pad: 14px;
-  --card-info: 7rem;
-  --card-bar: 18px;
+  /* card de projeto: um único tamanho por breakpoint. Nunca mais largo que a tela e, em telas
+     baixas, nunca mais alto que a área abaixo do cabeçalho (mas nunca menor que 22rem). */
+  --card-base: min(88vw, 27.5rem);
+  --card: min(var(--card-base), calc(100vw - 2 * var(--pad)), max(22rem, calc(100vh - var(--header-h) - 80px)));
+  --card-pad: 10px;   /* respiro entre a borda do card e o conteúdo */
+  --pv-pad: 4px;      /* respiro entre a área da prévia e a moldura do site */
+  --card-bar: 14px;   /* barra do navegador sobre a captura */
+  --card-info: 6.375rem; /* rodapé fixo: categoria, título em até 2 linhas e "Abrir projeto" */
   --card-gap: 16px;
 }
 
@@ -186,16 +188,17 @@ p { text-wrap: pretty; }
 
 /* ── 6. PROJETOS (faixa horizontal com cards quadrados iguais) ──────────── */
 .projects { background: var(--bg); padding-top: clamp(32px, 5vw, 64px); }
-.projects__head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 20px 32px; margin-bottom: clamp(28px, 4vw, 44px); }
+/* o respiro acima dos cards fica no padding da faixa, onde cabe a luz da moldura */
+.projects__head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 20px 32px; margin-bottom: clamp(8px, calc(4vw - 20px), 24px); }
 .projects__intro { max-width: 640px; }
 .carousel-nav { display: flex; gap: 10px; }
 
 .carousel { position: relative; }
 .carousel__track {
-  display: flex; gap: var(--card-gap);
+  position: relative; display: flex; gap: var(--card-gap);
   overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain;
   scroll-snap-type: x proximity; scroll-padding-inline: var(--edge);
-  padding: 6px var(--edge) 22px;
+  padding: 26px var(--edge) 32px;
   -webkit-overflow-scrolling: touch;
 }
 .carousel__item { flex: 0 0 var(--card); width: var(--card); min-width: 0; scroll-snap-align: start; }
@@ -203,48 +206,88 @@ p { text-wrap: pretty; }
 .carousel.is-ready .carousel__track::-webkit-scrollbar { display: none; }
 .carousel.is-dragging .carousel__track { cursor: grabbing; scroll-snap-type: none; user-select: none; -webkit-user-select: none; }
 .carousel.is-dragging .project__link { pointer-events: none; }
+.carousel.is-settling .carousel__track { scroll-snap-type: none; }
 .carousel__progress { height: 2px; margin-inline: var(--edge); border-radius: 2px; background: var(--border); overflow: hidden; }
 .carousel__progress span { display: block; height: 100%; width: calc(var(--vis, .3) * 100%); border-radius: inherit; background: var(--brand-gradient); transform: translateX(calc(var(--p, 0) * (1 / var(--vis, .3) - 1) * 100%)); transition: transform .12s linear; }
 
+/* Card: borda fina em degradê (mais clara nos cantos), halo curto e, dentro, a captura o maior
+   possível. A altura da área da prévia sai do card menos bordas, respiros e o rodapé fixo; a
+   moldura usa toda a largura e só encolhe se a altura não comportar a captura em 16:10. */
 .project {
-  /* altura da prévia calculada a partir do card, para o quadro do navegador caber igual em todos */
-  --pv: calc(var(--card) - 2 * var(--card-pad) - var(--card-info) - 24px);
-  position: relative; display: flex; flex-direction: column;
+  --pv-h: calc(var(--card) - 2px - 2 * var(--card-pad) - var(--card-info));
+  position: relative; isolation: isolate; display: flex; flex-direction: column;
   width: 100%; aspect-ratio: 1 / 1; padding: var(--card-pad);
-  border-radius: var(--r-panel); border: 1px solid var(--border);
-  background: linear-gradient(180deg, var(--surface) 0%, var(--bg-alt) 100%);
-  overflow: hidden;
-  transition: border-color .25s var(--ease), box-shadow .25s var(--ease);
+  border-radius: var(--r-panel); border: 1px solid transparent;
+  background:
+    linear-gradient(180deg, var(--surface) 0%, var(--bg-alt) 100%) padding-box,
+    conic-gradient(rgba(96, 165, 250, .2) 0deg 31deg, rgba(103, 232, 249, .7) 45deg, rgba(96, 165, 250, .2) 59deg 121deg, rgba(103, 232, 249, .7) 135deg, rgba(96, 165, 250, .2) 149deg 211deg, rgba(103, 232, 249, .7) 225deg, rgba(96, 165, 250, .2) 239deg 301deg, rgba(103, 232, 249, .7) 315deg, rgba(96, 165, 250, .2) 329deg) border-box;
+  box-shadow: 0 0 16px -8px rgba(56, 189, 248, .35), 0 18px 34px -26px rgba(37, 99, 235, .6);
 }
-.project:hover { border-color: rgba(96, 165, 250, .5); box-shadow: 0 24px 48px -28px rgba(37, 99, 235, .55); }
+/* Camadas da moldura de energia, atrás da prévia e do texto (z-index -1 dentro do card):
+   ::before acende o fundo perto do ponto de contato e solta um halo curto para fora;
+   ::after é o contorno de 2px, com o ponto mais claro onde está o dedo ou o mouse. */
+.project::before, .project::after {
+  content: ""; position: absolute; inset: -1px; z-index: -1; border-radius: inherit;
+  pointer-events: none; opacity: 0; transition: opacity .3s var(--ease);
+}
+.project::before {
+  background: radial-gradient(14rem circle at var(--mx, 50%) var(--my, 50%), rgba(56, 189, 248, calc(var(--spot, 1) * .24)), rgba(37, 99, 235, calc(var(--spot, 1) * .1)) 42%, transparent 70%);
+  box-shadow: 0 0 22px -4px rgba(34, 211, 238, .45), 0 0 0 1px rgba(103, 232, 249, .22);
+}
+.project::after {
+  padding: 2px;
+  background:
+    radial-gradient(10rem circle at var(--mx, 50%) var(--my, 50%), rgba(236, 254, 255, var(--spot, 1)), rgba(103, 232, 249, calc(var(--spot, 1) * .9)) 22%, rgba(56, 189, 248, calc(var(--spot, 1) * .35)) 48%, transparent 70%),
+    linear-gradient(135deg, rgba(103, 232, 249, .62), rgba(59, 130, 246, .34) 50%, rgba(103, 232, 249, .62));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+}
+/* aceso pelo toque ou pelo mouse: entra rápido e apaga devagar */
+.project.is-lit::before, .project.is-lit::after { opacity: 1; transition-duration: .18s; }
+/* card predominante durante a rolagem (inclusive a inércia): só o contorno, sem ponto de luz */
+.project.is-current:not(.is-lit) { --spot: 0; }
+.project.is-current::after { opacity: .75; transition-duration: .18s; }
+.project.is-current::before { opacity: .5; transition-duration: .18s; }
+/* teclado: contorno aceso e estático, somado ao anel de foco do link */
+.project:has(.project__link:focus-visible) { --spot: 0; }
+.project:has(.project__link:focus-visible)::after { opacity: 1; }
+
 .project__preview {
-  flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 12px;
-  border-radius: var(--r-preview);
-  background: radial-gradient(80% 90% at 50% 100%, rgba(37, 99, 235, .22), transparent 70%), var(--surface-raised);
+  flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center; padding: var(--pv-pad);
+  background: radial-gradient(70% 60% at 50% 100%, rgba(37, 99, 235, .2), transparent 75%);
 }
 .project__frame {
-  width: min(100%, calc((var(--pv) - var(--card-bar)) * 1.6));
+  width: min(100%, calc((var(--pv-h) - 2 * var(--pv-pad) - var(--card-bar) - 2px) * 1.6));
   border-radius: 10px; overflow: hidden; background: var(--bg-alt);
   border: 1px solid rgba(244, 247, 252, .14);
   box-shadow: 0 16px 32px -18px rgba(0, 0, 0, .8);
 }
-.project__bar { display: flex; align-items: center; gap: 5px; height: var(--card-bar); padding-inline: 9px; background: rgba(244, 247, 252, .06); border-bottom: 1px solid rgba(244, 247, 252, .08); }
-.project__bar i { width: 6px; height: 6px; border-radius: 50%; background: rgba(244, 247, 252, .28); }
-.project__frame img { width: 100%; height: auto; aspect-ratio: 16 / 10; object-fit: contain; background: var(--bg-alt); transition: transform .5s var(--ease); -webkit-user-drag: none; }
-.project:hover .project__frame img { transform: scale(1.02); }
-.project__info { flex: 0 0 var(--card-info); display: flex; flex-direction: column; padding: 12px 4px 0; }
-.project__tag { display: flex; align-items: center; min-height: 1.25rem; font-size: .8125rem; font-weight: 500; line-height: 1.3; color: var(--accent-blue); }
+.project__bar { display: flex; align-items: center; gap: 4px; height: var(--card-bar); padding-inline: 8px; background: rgba(244, 247, 252, .06); border-bottom: 1px solid rgba(244, 247, 252, .08); }
+.project__bar i { width: 5px; height: 5px; border-radius: 50%; background: rgba(244, 247, 252, .28); }
+.project__frame img { width: 100%; height: auto; aspect-ratio: 16 / 10; object-fit: contain; background: var(--bg-alt); -webkit-user-drag: none; }
+.project__info { flex: 0 0 var(--card-info); display: flex; flex-direction: column; padding: 10px 4px 0; }
+.project__tag { display: flex; align-items: center; height: 1.375rem; font-size: .8125rem; font-weight: 500; line-height: 1.3; color: var(--accent-blue); }
 .status { display: inline-flex; align-items: center; padding: 1px 9px; border-radius: 999px; border: 1px solid rgba(103, 232, 249, .45); background: rgba(103, 232, 249, .08); color: var(--accent-cyan); font-size: .75rem; font-weight: 600; line-height: 1.4; }
 .project__title {
-  margin-top: 6px; min-height: 2.5em; font-size: 1.0625rem; font-weight: 600; line-height: 1.25; letter-spacing: -.01em;
+  margin-top: 4px; min-height: 2.5em; font-size: 1rem; font-weight: 600; line-height: 1.25; letter-spacing: -.01em;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
-.project__link { display: inline-flex; align-items: center; gap: 6px; margin-top: auto; padding-top: 6px; font-size: .875rem; font-weight: 600; color: var(--text); transition: color .2s var(--ease); }
+.project__link { display: inline-flex; align-items: center; gap: 6px; margin-top: auto; font-size: .875rem; font-weight: 600; color: var(--text); transition: color .2s var(--ease); -webkit-tap-highlight-color: transparent; }
 .project__link .icon { width: 1em; height: 1em; color: var(--accent-blue); }
 .project__link::after { content: ""; position: absolute; inset: 0; border-radius: var(--r-panel); }
 .project__link:focus-visible { outline: none; }
 .project__link:focus-visible::after { outline: 2px solid var(--accent-cyan); outline-offset: -2px; }
-.project:hover .project__link { color: var(--accent-cyan); }
+.project.is-lit .project__link { color: var(--accent-cyan); }
+/* sem JavaScript, o mouse ainda acende o contorno (só em aparelhos com hover de verdade) */
+@media (hover: hover) and (pointer: fine) {
+  html:not(.js) .project:hover { --spot: 0; }
+  html:not(.js) .project:hover::after { opacity: .75; }
+}
+/* sem máscara CSS: o contorno aceso vira um outline simples */
+@supports not ((mask-composite: exclude) or (-webkit-mask-composite: xor)) {
+  .project::after { display: none; }
+  .project.is-lit, .project.is-current { outline: 2px solid rgba(103, 232, 249, .7); outline-offset: -1px; }
+}
 
 .projects__cta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 18px; margin-top: 20px; color: var(--text-muted); }
 
@@ -423,7 +466,8 @@ html:not(.js) .form { display: none; }
   .hero__actions .btn { width: 100%; }
 }
 @media (min-width: 640px) {
-  :root { --card-base: 22rem; --card-pad: 16px; --card-gap: 20px; }
+  :root { --card-base: 26.25rem; --card-pad: 12px; --pv-pad: 6px; --card-bar: 16px; --card-info: 6.5rem; --card-gap: 20px; }
+  .project__title { font-size: 1.0625rem; }
   .form__row { grid-template-columns: 1fr 1fr; }
   .bento { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .bento__main { grid-column: 1 / -1; }
@@ -461,9 +505,15 @@ html:not(.js) .form { display: none; }
   .hero__points { margin-top: 20px; }
 }
 @media (min-width: 1024px) {
-  :root { --card-base: 22.5rem; }
+  :root { --card-base: 28.75rem; --card-pad: 14px; --card-bar: 18px; --card-info: 6.875rem; }
+  .project__info { padding-top: 12px; }
+  .project__title { font-size: 1.1875rem; }
   .bento { grid-template-columns: minmax(0, 1.2fr) repeat(2, minmax(0, 1fr)); }
   .bento__main { grid-column: 1; grid-row: span 2; }
+}
+@media (min-width: 1280px) {
+  :root { --card-base: 32.5rem; --card-pad: 16px; --card-info: 7rem; --card-gap: 24px; }
+  .project__title { font-size: 1.25rem; }
 }
 
 /* ── 16. ENTRADAS (só com JS ativo; nunca escondem conteúdo de vez) ──────── */
@@ -475,5 +525,6 @@ html:not(.js) .form { display: none; }
   html { scroll-behavior: auto; }
   *, *::before, *::after { transition-duration: .01ms !important; transition-delay: 0s !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
   .js .reveal { opacity: 1; transform: none; }
-  .project:hover .project__frame img { transform: none; }
+  /* a luz não percorre o contorno: o card aceso só ganha a borda clara, de forma estática */
+  .project { --spot: 0; }
 }

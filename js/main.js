@@ -62,7 +62,10 @@
 
   /* ── Faixa de projetos ──────────────────────────────────────────────────
      Rolagem nativa com scroll-snap. O script só acrescenta os botões, a
-     barra de progresso, o arraste com mouse e as setas do teclado. */
+     barra de progresso, o arraste com mouse, as setas do teclado e a
+     moldura de luz. Os listeners de toque e rolagem só observam: nada de
+     preventDefault, touch-action ou captura de ponteiro, então a rolagem
+     horizontal, a vertical, a inércia e a pinça continuam com o navegador. */
   var carousel = $('[data-carousel]');
   if (carousel) {
     var track = $('.carousel__track', carousel);
@@ -71,42 +74,148 @@
     var buttons = $$('button', nav);
     var progress = $('[data-carousel-progress]', carousel);
     var behavior = function () { return mqReduce.matches ? 'auto' : 'smooth'; };
-    var stepSize = function () {
+
+    // medidas reaproveitadas entre quadros; refeitas quando a faixa ou os cards mudam de tamanho
+    var geo = { step: 0, starts: [], centers: [] };
+    function measure() {
       var gap = parseFloat(getComputedStyle(track).columnGap) || 0;
-      return items[0].getBoundingClientRect().width + gap;
-    };
+      geo.step = items[0].offsetWidth + gap;
+      // posição de rolagem em que cada card encosta no alinhamento do container (o mesmo ponto do snap)
+      geo.starts = items.map(function (li) { return li.offsetLeft - items[0].offsetLeft; });
+      geo.centers = items.map(function (li) { return li.offsetLeft + li.offsetWidth / 2; });
+    }
 
     buttons.forEach(function (btn) {
       btn.addEventListener('click', function () {
-        track.scrollBy({ left: Number(btn.getAttribute('data-step')) * stepSize(), behavior: behavior() });
+        track.scrollBy({ left: Number(btn.getAttribute('data-step')) * geo.step, behavior: behavior() });
       });
     });
-
-    var ticking = false;
-    function update() {
-      ticking = false;
-      var max = track.scrollWidth - track.clientWidth;
-      var scrollable = max > 2;
-      nav.hidden = !scrollable;
-      progress.hidden = !scrollable;
-      if (!scrollable) return;
-      var x = track.scrollLeft;
-      setDisabled(buttons[0], x <= 2, buttons[1]);
-      setDisabled(buttons[1], x >= max - 2, buttons[0]);
-      progress.style.setProperty('--p', (x / max).toFixed(4));
-      progress.style.setProperty('--vis', (track.clientWidth / track.scrollWidth).toFixed(4));
-    }
     function setDisabled(btn, off, other) {
       if (btn.disabled === off) return;
       // se o botão em foco ficar desabilitado, o foco passa para o outro
       if (off && document.activeElement === btn && !other.disabled) other.focus();
       btn.disabled = off;
     }
-    var requestUpdate = function () { if (!ticking) { ticking = true; requestAnimationFrame(update); } };
-    track.addEventListener('scroll', requestUpdate, { passive: true });
-    new ResizeObserver(requestUpdate).observe(track);
+
+    /* Moldura de luz: o card sob o dedo ou o mouse fica aceso (.is-lit) com o
+       ponto de luz na posição do contato; durante a rolagem, o card mais
+       perto do centro da área visível ganha só o contorno (.is-current). */
+    var lit = null;          // card aceso pelo ponteiro
+    var aimId = null;        // ponteiro acompanhado; vira null quando o navegador assume a rolagem
+    var aim = null;          // último ponto do ponteiro, em coordenadas da janela
+    var aimDirty = false;
+    var current = null;      // card predominante durante a rolagem
+    var scrolling = false, settleTimer = 0, queued = false, stripDirty = true;
+    var drag = null, suppressClick = false;  // arraste com mouse (mais abaixo)
+    var landing = null;                       // card em que a faixa vai assentar depois do arraste
+
+    function schedule() { if (!queued) { queued = true; requestAnimationFrame(tick); } }
+    // um único passo por quadro: primeiro as leituras, depois as escritas. Um movimento do
+    // ponteiro sem rolagem só lê a posição do card aceso e escreve o ponto de luz.
+    function tick() {
+      queued = false;
+      var strip = stripDirty;
+      stripDirty = false;
+      var x = 0, view = 0, max = 0;
+      if (strip) { x = track.scrollLeft; view = track.clientWidth; max = track.scrollWidth - view; }
+      var box = aimDirty && lit && aim && !mqReduce.matches ? lit.getBoundingClientRect() : null;
+      aimDirty = false;
+
+      if (strip) {
+        var scrollable = max > 2;
+        nav.hidden = !scrollable;
+        progress.hidden = !scrollable;
+        if (scrollable) {
+          setDisabled(buttons[0], x <= 2, buttons[1]);
+          setDisabled(buttons[1], x >= max - 2, buttons[0]);
+          progress.style.setProperty('--p', (x / max).toFixed(4));
+          progress.style.setProperty('--vis', (view / (max + view)).toFixed(4));
+        }
+        if (scrolling) setCurrent(nearest(x + view / 2));
+        if (landing !== null && Math.abs(x - landing) < 1) land();
+      }
+      if (box) {
+        lit.style.setProperty('--mx', (aim.x - box.left).toFixed(1) + 'px');
+        lit.style.setProperty('--my', (aim.y - box.top).toFixed(1) + 'px');
+      }
+    }
+    function nearest(center) {
+      var best = 0;
+      geo.centers.forEach(function (c, i) { if (Math.abs(c - center) < Math.abs(geo.centers[best] - center)) best = i; });
+      return items[best].firstElementChild;
+    }
+    function setCurrent(card) {
+      if (card === current) return;
+      if (current) current.classList.remove('is-current');
+      current = card;
+      if (card) card.classList.add('is-current');
+    }
+    function light(card) {
+      if (card === lit) return;
+      if (lit) lit.classList.remove('is-lit');
+      lit = card;
+      if (card) card.classList.add('is-lit');
+    }
+    function pointAt(e) { aim = { x: e.clientX, y: e.clientY }; aimDirty = true; schedule(); }
+    function release() { aimId = null; light(null); }
+    // a faixa parou (scrollend ou, onde ele não existe, uma pausa curta sem eventos de rolagem)
+    function settle() { clearTimeout(settleTimer); scrolling = false; setCurrent(null); land(); }
+    // a faixa chegou ao card escolhido (ou a rolagem parou antes): o snap volta a valer
+    function land() { if (landing === null) return; landing = null; carousel.classList.remove('is-settling'); }
+    function stopAll() { release(); settle(); }
+
+    track.addEventListener('scroll', function () {
+      scrolling = true;
+      stripDirty = true;
+      schedule();
+      clearTimeout(settleTimer);
+      settleTimer = setTimeout(settle, 160);
+    }, { passive: true });
+    // o Chrome dispara scrollend a cada passo do arraste com mouse; aí quem decide o fim é o timer
+    track.addEventListener('scrollend', function () { if (!(drag && drag.moved)) settle(); }, { passive: true });
+
+    track.addEventListener('pointerdown', function (e) {
+      land();
+      var card = e.target.closest('.project');
+      if (!card || (e.pointerType === 'mouse' && e.button !== 0)) return;
+      aimId = e.pointerId;
+      light(card);
+      pointAt(e);
+    }, { passive: true });
+    track.addEventListener('pointermove', function (e) {
+      if (e.pointerType === 'mouse') {
+        // mouse: a luz segue o cursor, inclusive durante o arraste; no vão entre cards ela apaga
+        var card = e.target.closest('.project');
+        light(card);
+        if (card) pointAt(e);
+      } else if (e.pointerId === aimId) {
+        pointAt(e);
+      }
+    }, { passive: true });
+    track.addEventListener('pointerup', function (e) {
+      if (e.pointerType !== 'mouse' && e.pointerId === aimId) release();
+    }, { passive: true });
+    // o navegador assumiu a rolagem: o ponto para de ser seguido, mas a luz fica no card,
+    // que se move junto com o dedo, até o dedo sair da tela
+    track.addEventListener('pointercancel', function (e) {
+      if (e.pointerId !== aimId) return;
+      aimId = null;
+      if (e.pointerType !== 'touch') release();
+    }, { passive: true });
+    track.addEventListener('touchend', function (e) { if (!e.touches.length) release(); }, { passive: true });
+    track.addEventListener('touchcancel', release, { passive: true });
+    track.addEventListener('pointerleave', function (e) { if (e.pointerType === 'mouse') release(); }, { passive: true });
+    // aba escondida, janela sem foco ou faixa fora da tela: nada fica aceso
+    document.addEventListener('visibilitychange', function () { if (document.hidden) stopAll(); });
+    window.addEventListener('blur', stopAll);
+    new IntersectionObserver(function (en) { if (!en[0].isIntersecting) stopAll(); }).observe(carousel);
+
+    var ro = new ResizeObserver(function () { measure(); stripDirty = true; schedule(); });
+    ro.observe(track);
+    ro.observe(items[0]);
     carousel.classList.add('is-ready');
-    update();
+    measure();
+    tick();
 
     // o foco num card fora da área visível revela o card
     track.addEventListener('focusin', function (e) {
@@ -127,28 +236,46 @@
       $('.project__link', next).focus();
     });
 
-    // arraste com mouse: só vira arraste depois de 6px; um arraste não abre o link
-    var drag = null, suppressClick = false;
+    // arraste com mouse: só vira arraste depois de 6px; um arraste não abre o link.
+    // Ao soltar, a faixa assenta no próximo card na direção do arraste (o mouse não tem inércia,
+    // e com cards largos o snap mais próximo poderia devolver a faixa ao ponto de partida).
+    function endDrag() {
+      if (!drag) return;
+      if (drag.moved) {
+        suppressClick = true;
+        setTimeout(function () { suppressClick = false; }, 60);
+        var x = track.scrollLeft, max = track.scrollWidth - track.clientWidth, dir = x - drag.left;
+        var target = dir > 0
+          ? geo.starts.filter(function (v) { return v > x + 1; })[0]
+          : geo.starts.filter(function (v) { return v < x - 1; }).pop();
+        if (target === undefined) target = dir > 0 ? max : 0;
+        target = Math.min(target, max);
+        if (Math.abs(dir) > 40 && Math.abs(target - x) >= 1) {
+          // o snap só volta quando a faixa chegar lá; ligado antes, ele puxaria para o card mais próximo
+          landing = target;
+          carousel.classList.add('is-settling');
+          track.scrollTo({ left: target, behavior: behavior() });
+        }
+        carousel.classList.remove('is-dragging');
+      }
+      drag = null;
+    }
     track.addEventListener('pointerdown', function (e) {
       if (e.pointerType !== 'mouse' || e.button !== 0) return;
       drag = { x: e.clientX, left: track.scrollLeft, moved: false };
     });
     window.addEventListener('pointermove', function (e) {
       if (!drag) return;
+      // botão solto fora da janela: encerra o arraste em vez de continuar seguindo o mouse
+      if (!(e.buttons & 1)) { endDrag(); return; }
       var dx = e.clientX - drag.x;
       if (!drag.moved && Math.abs(dx) < 6) return;
       if (!drag.moved) { drag.moved = true; carousel.classList.add('is-dragging'); }
       track.scrollLeft = drag.left - dx;
-    });
-    window.addEventListener('pointerup', function () {
-      if (!drag) return;
-      if (drag.moved) {
-        suppressClick = true;
-        setTimeout(function () { suppressClick = false; }, 60);
-        carousel.classList.remove('is-dragging');
-      }
-      drag = null;
-    });
+    }, { passive: true });
+    window.addEventListener('pointerup', endDrag);
+    window.addEventListener('pointercancel', endDrag);
+    window.addEventListener('blur', endDrag);
     track.addEventListener('click', function (e) {
       if (suppressClick) { e.preventDefault(); e.stopPropagation(); suppressClick = false; }
     }, true);
